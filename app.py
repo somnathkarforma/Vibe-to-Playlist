@@ -2,6 +2,7 @@ import json
 import os
 import re
 from typing import Dict, List, Set, Tuple
+from urllib.parse import quote_plus
 
 import streamlit as st
 from dotenv import load_dotenv
@@ -76,6 +77,32 @@ def extract_json(text: str) -> Dict[str, object]:
     return data
 
 
+def spotify_search_url(song: str, artist: str) -> str:
+    query = quote_plus(f"{song} {artist}".strip())
+    return f"https://open.spotify.com/search/{query}"
+
+
+def enrich_playlist(data: Dict[str, object]) -> Dict[str, object]:
+    playlist = data.get("playlist", [])
+    enriched: List[Dict[str, str]] = []
+
+    for item in playlist[:5]:
+        song = str(item.get("song", "Unknown song")).strip()
+        artist = str(item.get("artist", "Unknown artist")).strip()
+        reason = str(item.get("reason", "Chosen to fit the mood you described.")).strip()
+        enriched.append(
+            {
+                "song": song,
+                "artist": artist,
+                "reason": reason,
+                "spotify_url": spotify_search_url(song, artist),
+            }
+        )
+
+    data["playlist"] = enriched
+    return data
+
+
 def generate_groq_playlist(day_text: str, api_key: str, model: str) -> Dict[str, object]:
     client = Groq(api_key=api_key)
     prompt = f'''
@@ -108,7 +135,7 @@ User description: {day_text}
     )
 
     content = response.choices[0].message.content or ""
-    return extract_json(content)
+    return enrich_playlist(extract_json(content))
 
 
 def infer_tags(day_text: str) -> Tuple[Set[str], Dict[str, float]]:
@@ -175,10 +202,12 @@ def generate_local_playlist(day_text: str) -> Dict[str, object]:
         for song in selected
     ]
 
-    return {
-        "summary": local_summary(tags, scores),
-        "playlist": playlist,
-    }
+    return enrich_playlist(
+        {
+            "summary": local_summary(tags, scores),
+            "playlist": playlist,
+        }
+    )
 
 
 def generate_playlist(day_text: str, api_key: str, model: str) -> Tuple[Dict[str, object], str]:
@@ -224,6 +253,7 @@ if st.button("Generate playlist", type="primary"):
         for index, item in enumerate(result["playlist"][:5], start=1):
             st.markdown(f"**{index}. {item['song']} — {item['artist']}**")
             st.write(item["reason"])
+            st.link_button(f"Open song {index} in Spotify", item["spotify_url"])
             st.divider()
 
-st.caption("Tip: set `GROQ_API_KEY` in a `.env` file if you want live AI-generated recommendations.")
+st.caption("Tip: set `GROQ_API_KEY` in a `.env` file for local use, or as a hosted secret when you deploy this app to Streamlit Community Cloud or Render.")

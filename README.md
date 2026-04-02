@@ -1,13 +1,16 @@
 # Vibe to Playlist
 
-A Streamlit web app that turns a short description of your day into a 5-song playlist with mood-based explanations and Spotify links.
+A web app (FastAPI) that turns a short description of your day into a 5-song playlist with mood-based reasons, language selection (English, Bengali, Hindi), and Spotify/YouTube links.
 
 ## Features
-- Streamlit frontend
-- Optional Groq-powered playlist generation
-- Local mood-based fallback if no API key is set
-- Spotify search link for every suggested song
-- Mobile-friendly once deployed to a public host
+- FastAPI + simple responsive HTML UI
+- Language picker: English, Bengali, Hindi
+- Mood/vibe text input with client heading prompts
+- Top 5 tracks in selected language
+- Spotify link for English (primary), YouTube fallback
+- YouTube link for Bengali/Hindi (primary), Spotify fallback
+- Optional Groq API support for AI playlist generation
+- Local mood-based fallback if no API key or Groq errors
 
 ## Local setup
 ```powershell
@@ -17,29 +20,25 @@ pip install -r requirements.txt
 copy .env.example .env
 ```
 
-Then add your Groq API key to `.env` if you want live AI recommendations.
+Then add your Groq API key to `.env` if you want live AI recommendations (`GROQ_API_KEY`, `GROQ_MODEL`).
 
 ## Run locally
 ```powershell
-.\.venv\Scripts\python -m streamlit run app.py
+.\.venv\Scripts\python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-## Deploy so it works from your phone
+## Access from anywhere (phone/web)
+- Run with host `0.0.0.0` so the app is reachable on your local network.
+- Open `http://<your-machine-ip>:8000` on your phone/browser.
+- For public hosting, deploy to Render / Heroku / Railway / any FastAPI-supported platform and set `PORT` and `GROQ_API_KEY` as environment variables.
 
-### Option 1: Streamlit Community Cloud
-1. Push this folder to a GitHub repo.
-2. Go to [https://share.streamlit.io](https://share.streamlit.io).
-3. Create a new app and select your repo.
-4. In **Secrets**, add:
-   ```toml
-   GROQ_API_KEY = "your_key_here"
-   GROQ_MODEL = "llama-3.3-70b-versatile"
-   ```
-5. Deploy and open the public URL on your phone.
+## Notes
+- `https://<host>/` shows the language selector and mood text area.
+- `https://<host>/generate` returns a playlist page with 5 tracks and provider-specific links.
+- Any selected language that may not be available on Spotify will fall back to YouTube.
 
-### Option 2: Render
-This repo now includes `render.yaml`, so you can deploy it directly on Render:
-1. Push the repo to GitHub.
-2. Create a new **Blueprint** service on [https://render.com](https://render.com).
-3. Add `GROQ_API_KEY` in Render environment variables.
-4. Deploy and use the generated public URL from any device.
+## Example
+1. Choose `Bengali` or `Hindi` (or `English`).
+2. Enter mood text under "How are you feeling for Mood/vibe input".
+3. Generate playlist and click the provided song links.
+

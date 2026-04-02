@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vibe to Playlist</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f8fafc; color: #0f172a; }
+    .container { max-width: 900px; margin: 1.5rem auto; padding: 1rem; }
+    .card { background: white; border-radius: 12px; box-shadow: 0 10px 30px rgba(20, 25, 45, 0.08); padding: 1.25rem; }
+    h1 { margin-top: 0; }
+    label { display: block; margin-bottom: 0.35rem; font-weight: 600; }
+    select, textarea, input { width: 100%; padding: 0.75rem; border-radius: 8px; border: 1px solid #cbd5e1; margin-bottom: 1rem; }
+    button { background: #2563eb; color: white; border: 0; padding: 0.75rem 1.1rem; border-radius: 8px; font-weight: 700; cursor: pointer; }
+    button:hover { background: #1d4ed8; }
+    .song-item { margin-bottom: 1rem; }
+    .song-title { margin: 0 0 0.2rem; font-weight: 700; }
+    .note { color: #475569; font-size: 0.95rem; }
+    .flex-row { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+    a { color: #2563eb; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    @media (max-width: 640px) { .container { margin: 0.7rem; padding: 0.7rem; } }
+  </style>
+</head>
+<body>
+  <div class="container card">
+    <h1>Vibe to Playlist</h1>
+    <p>Access from anywhere. Select a language, describe your mood, and get matching top 5 songs.</p>
+    <form id="playlistForm">
+      <label for="language">Select your preferred language</label>
+      <select id="language" name="language" required>
+        <option value="English">English</option>
+        <option value="Bengali">Bengali</option>
+        <option value="Hindi">Hindi</option>
+      </select>
+
+      <label for="day_text">How are you feeling for Mood/vibe input</label>
+      <textarea id="day_text" name="day_text" rows="5" placeholder="E.g., It was a stressful but productive day..." required></textarea>
+
+      <button type="submit">Generate playlist</button>
+    </form>
+    <div id="result" style="display: none;"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/sentiment@5.0.2/dist/sentiment.min.js"></script>
+  <script>
+    const songLibrary = {
+      "English": [
+        {"song": "On Top of the World", "artist": "Imagine Dragons", "tags": ["productive", "motivated", "happy", "uplifting"], "descriptor": "bright, forward-moving"},
+        {"song": "Dog Days Are Over", "artist": "Florence + The Machine", "tags": ["uplifting", "relief", "energized", "happy"], "descriptor": "explosive, freeing"},
+        {"song": "Good Days", "artist": "SZA", "tags": ["calm", "reflective", "hopeful", "gentle"], "descriptor": "smooth, reassuring"},
+        {"song": "Vienna", "artist": "Billy Joel", "tags": ["reflective", "stressed", "calm", "comfort"], "descriptor": "thoughtful, grounding"},
+        {"song": "Shake It Out", "artist": "Florence + The Machine", "tags": ["release", "stressed", "uplifting", "relief"], "descriptor": "cathartic, big-hearted"},
+      ],
+      "Bengali": [
+        {"song": "Tomake Chai", "artist": "Hemanta Mukherjee", "tags": ["romantic", "nostalgic", "calm"], "descriptor": "warm, heartfelt"},
+        {"song": "Amake Amar Moto Thakte Dao", "artist": "Akhiyan", "tags": ["calm", "reflective", "gentle"], "descriptor": "soothing, liberating"},
+        {"song": "Mon Mano Na", "artist": "Mithun", "tags": ["upbeat", "happy", "energized"], "descriptor": "bouncy, cheerful"},
+        {"song": "Ei Raat Tomar Amar", "artist": "Firoza Begum", "tags": ["romantic", "calm", "reflective"], "descriptor": "dreamy, poetic"},
+        {"song": "Meghe Dhaka Tara", "artist": "Manna Dey", "tags": ["reflective", "comfort", "classic"], "descriptor": "timeless, steady"},
+      ],
+      "Hindi": [
+        {"song": "Tum Hi Ho", "artist": "Arijit Singh", "tags": ["romantic", "melancholy", "reflective"], "descriptor": "deep, emotional"},
+        {"song": "Kal Ho Naa Ho", "artist": "Sonu Nigam", "tags": ["hopeful", "comfort", "uplifting"], "descriptor": "inspiring, gentle"},
+        {"song": "Zindagi", "artist": "Bachna Ae Haseeno", "tags": ["happy", "energized", "upbeat"], "descriptor": "playful, lively"},
+        {"song": "Tere Bina", "artist": "A.R. Rahman", "tags": ["calm", "yearning", "reflective"], "descriptor": "haunting, soft"},
+        {"song": "Agar Tum Saath Ho", "artist": "Alka Yagnik & Arijit Singh", "tags": ["sad", "comfort", "heartfelt"], "descriptor": "intimate, soothing"},
+      ],
+    };
+
+    const keywordTags = {
+      "productive": ["productive", "motivated", "focus"],
+      "focused": ["productive", "focus", "motivated"],
+      "motivated": ["motivated", "productive", "uplifting"],
+      "stressed": ["stressed", "calm", "relief"],
+      "anxious": ["stressed", "calm", "gentle"],
+      "overwhelmed": ["stressed", "relief", "comfort"],
+      "tired": ["gentle", "comfort", "calm"],
+      "exhausted": ["gentle", "comfort", "calm"],
+      "happy": ["happy", "uplifting", "light"],
+      "excited": ["happy", "energized", "uplifting"],
+      "sad": ["sad", "reflective", "comfort"],
+      "down": ["sad", "gentle", "comfort"],
+      "calm": ["calm", "gentle", "easy"],
+      "relaxed": ["calm", "easy", "light"],
+      "lonely": ["reflective", "comfort", "gentle"],
+    };
+
+    function inferTags(text) {
+      const sentiment = new Sentiment();
+      const result = sentiment.analyze(text);
+      const score = result.score;
+      const comparative = result.comparative;
+      let tags = new Set();
+
+      Object.keys(keywordTags).forEach(keyword => {
+        if (text.toLowerCase().includes(keyword)) {
+          keywordTags[keyword].forEach(tag => tags.add(tag));
+        }
+      });
+
+      if (comparative > 0.1) {
+        tags.add("happy").add("uplifting").add("energized").add("hopeful");
+      } else if (comparative < -0.1) {
+        tags.add("reflective").add("comfort").add("gentle");
+      } else {
+        tags.add("calm").add("balanced");
+      }
+
+      if (tags.size === 0) {
+        tags.add("reflective").add("calm").add("balanced");
+      }
+
+      return { tags: Array.from(tags), score };
+    }
+
+    function localSummary(tags, score) {
+      const toneOrder = ["productive", "stressed", "happy", "reflective", "calm", "tired", "motivated"];
+      const tones = toneOrder.filter(tone => tags.includes(tone)).slice(0, 3);
+      const toneText = tones.length > 0 ? tones.join(", ") : "mixed";
+
+      let direction;
+      if (score.comparative > 0.1) {
+        direction = "uplifting and high-energy";
+      } else if (score.comparative < -0.1) {
+        direction = "gentle and grounding";
+      } else {
+        direction = "balanced and steady";
+      }
+
+      return `Your vibe reads as ${toneText}, so this playlist leans ${direction} to match your day.`;
+    }
+
+    function scoreSong(song, tags) {
+      const songTags = song.tags || [];
+      const overlap = songTags.filter(tag => tags.includes(tag)).length;
+      return overlap * 3 + (songTags.includes("calm") && tags.includes("stressed") ? 1 : 0);
+    }
+
+    function localReason(song, tags) {
+      const matches = song.tags.filter(tag => tags.includes(tag));
+      const vibe = matches.slice(0, 2).join(", ") || "your current mood";
+      return `Its ${song.descriptor} energy matches ${vibe}.`;
+    }
+
+    function generatePlaylist(dayText, language) {
+      const { tags, score } = inferTags(dayText);
+      const sourceLibrary = songLibrary[language] || songLibrary["English"];
+      const ranked = sourceLibrary.slice().sort((a, b) => scoreSong(b, tags) - scoreSong(a, tags));
+      const selected = ranked.slice(0, 5);
+
+      const playlist = selected.map(song => {
+        const spotifyUrl = `https://open.spotify.com/search/${encodeURIComponent(`${song.song} ${song.artist}`)}`;
+        const youtubeUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(`${song.song} ${song.artist}`)}`;
+        const primary = language === "English" ? spotifyUrl : youtubeUrl;
+        const fallback = language === "English" ? youtubeUrl : spotifyUrl;
+        const primaryLabel = language === "English" ? "Spotify" : "YouTube";
+
+        return {
+          song: song.song,
+          artist: song.artist,
+          reason: localReason(song, tags),
+          primaryLink: primary,
+          primaryLabel,
+          fallbackLink: fallback,
+        };
+      });
+
+      return {
+        summary: localSummary(tags, score),
+        playlist,
+      };
+    }
+
+    document.getElementById('playlistForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const language = document.getElementById('language').value;
+      const dayText = document.getElementById('day_text').value.trim();
+
+      if (!dayText) {
+        alert("Please provide a mood/vibe text.");
+        return;
+      }
+
+      const result = generatePlaylist(dayText, language);
+
+      const resultDiv = document.getElementById('result');
+      resultDiv.innerHTML = `
+        <h2>Why this playlist fits</h2>
+        <p>${result.summary}</p>
+        <h2>Top 5 songs</h2>
+        ${result.playlist.map((item, idx) => `
+          <div class="song-item">
+            <p class="song-title">${idx + 1}. ${item.song} — ${item.artist}</p>
+            <p>${item.reason}</p>
+            <div class="flex-row">
+              <a href="${item.primaryLink}" target="_blank">Open on ${item.primaryLabel}</a>
+              <span class="note">(fallback: <a href="${item.fallbackLink}" target="_blank">${item.primaryLabel === "Spotify" ? "YouTube" : "Spotify"}</a>)</span>
+            </div>
+          </div>
+        `).join('')}
+      `;
+      resultDiv.style.display = 'block';
+    });
+  </script>
+</body>
+</html>
